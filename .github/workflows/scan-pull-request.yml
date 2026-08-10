@@ -1,0 +1,53 @@
+name: Scan Pull Request (centralized)
+
+# Scans a pull request in ANOTHER repository in this organization.
+#
+# Frogbot is given only the target repo and the PR number; it calls
+# GetPullRequestByID to resolve the source and target owner/repo/branch, then
+# downloads both branches itself. The target repository needs no workflow file
+# and this workflow never checks out its own source.
+#
+# In the real design XSC receives the `pull_request` App webhook and dispatches
+# this workflow. For the POC it is dispatched by hand or by the local bridge
+# script in scripts/.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: "Repository containing the pull request (name only)"
+        required: true
+        type: string
+      pr_number:
+        description: "Pull request number"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  # One in-flight scan per target PR; a new push supersedes the previous run.
+  group: pr-scan-${{ inputs.target_repo }}-${{ inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    name: "scan-pull-request: ${{ inputs.target_repo }}#${{ inputs.pr_number }}"
+    steps:
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: jfrog/frogbot@v3
+        env:
+          JF_URL: ${{ secrets.JF_URL }}
+          JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
+
+          JF_GIT_PROVIDER: github
+          JF_GIT_TOKEN: ${{ secrets.JF_GIT_TOKEN }}
+          JF_GIT_OWNER: ${{ github.repository_owner }}
+          JF_GIT_REPO: ${{ inputs.target_repo }}
+          JF_GIT_PULL_REQUEST_ID: ${{ inputs.pr_number }}
