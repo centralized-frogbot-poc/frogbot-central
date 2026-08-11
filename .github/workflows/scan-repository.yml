@@ -68,6 +68,19 @@ jobs:
         target: ${{ fromJson(needs.discover.outputs.targets) }}
     name: "scan-repository: ${{ matrix.target }}"
     steps:
+      # Required: `scan-repository` does NOT clone the target. Its
+      # switchToTempWorkingDir() copies the *current working directory* into a
+      # temp dir and treats that as the git repo, so the target must already be
+      # checked out here. (scan-pull-request differs - it downloads both
+      # branches through the VCS API and needs no checkout.)
+      - name: Check out the TARGET repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/${{ matrix.target }}
+          ref: ${{ inputs.branch || 'main' }}
+          token: ${{ secrets.JF_GIT_TOKEN }}
+          fetch-depth: 0
+
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
