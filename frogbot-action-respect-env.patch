@@ -1,0 +1,28 @@
+diff --git a/action/src/utils.ts b/action/src/utils.ts
+index fb0608f6..963f958a 100644
+--- a/action/src/utils.ts
++++ b/action/src/utils.ts
+@@ -60,12 +60,18 @@ export class Utils {
+ 
+     public static async setFrogbotEnv() {
+         core.exportVariable('JF_GIT_PROVIDER', 'github');
+-        core.exportVariable('JF_GIT_OWNER', githubContext.repo.owner);
+-        let owner: string | undefined = githubContext.repo.repo;
+-        if (owner) {
+-            core.exportVariable('JF_GIT_REPO', owner.substring(owner.indexOf('/') + 1));
++        if (!process.env.JF_GIT_OWNER) {
++            core.exportVariable('JF_GIT_OWNER', githubContext.repo.owner);
++        }
++        if (!process.env.JF_GIT_REPO) {
++            let owner: string | undefined = githubContext.repo.repo;
++            if (owner) {
++                core.exportVariable('JF_GIT_REPO', owner.substring(owner.indexOf('/') + 1));
++            }
++        }
++        if (!process.env.JF_GIT_PULL_REQUEST_ID) {
++            core.exportVariable('JF_GIT_PULL_REQUEST_ID', githubContext.issue.number);
+         }
+-        core.exportVariable('JF_GIT_PULL_REQUEST_ID', githubContext.issue.number);
+ 
+         if (!process.env.JF_GIT_TOKEN) {
+             const gitToken: string | undefined = process.env.GITHUB_TOKEN;
