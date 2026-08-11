@@ -2,12 +2,17 @@ name: Scan Repository (centralized)
 
 # Scans OTHER repositories in this organization. Nothing is installed in them.
 #
-# Frogbot resolves everything it needs from JF_GIT_* and clones the target
-# itself, so the target repository needs no workflow file and this workflow
-# never checks out its own source.
+# Frogbot's Go core takes the repo it should act on entirely from JF_GIT_* and
+# clones the target itself, so target repos need no workflow file and this
+# workflow never checks out its own source.
 #
-# NOTE: `frogbot scan-repository` also opens fix pull requests, so this is not a
-# scan-only path. See the "repo-scan is not a detective control" finding.
+# We invoke the binary directly rather than using jfrog/frogbot@v3, because the
+# action's setFrogbotEnv() unconditionally overwrites JF_GIT_OWNER, JF_GIT_REPO
+# and JF_GIT_PULL_REQUEST_ID with the *running* repo's context. See README.
+#
+# NOTE: `scan-repository` also opens fix pull requests, so this is not a
+# scan-only path — it runs package managers and does depend on the build
+# environment.
 
 on:
   workflow_dispatch:
@@ -63,18 +68,26 @@ jobs:
         target: ${{ fromJson(needs.discover.outputs.targets) }}
     name: "scan-repository: ${{ matrix.target }}"
     steps:
-      - name: Set up Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
-      - uses: jfrog/frogbot@v3
+      - name: Install Frogbot
+        run: |
+          set -euo pipefail
+          curl -fL 'https://releases.jfrog.io/artifactory/frogbot/v3/%5BRELEASE%5D/frogbot-linux-amd64/frogbot' -o /usr/local/bin/frogbot
+          chmod +x /usr/local/bin/frogbot
+          frogbot --version
+
+      - name: Scan target repository
         env:
           JF_URL: ${{ secrets.JF_URL }}
           JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
 
           JF_GIT_PROVIDER: github
+          JF_GIT_API_ENDPOINT: https://api.github.com
           JF_GIT_TOKEN: ${{ secrets.JF_GIT_TOKEN }}
           JF_GIT_OWNER: ${{ github.repository_owner }}
           JF_GIT_REPO: ${{ matrix.target }}
           JF_GIT_BASE_BRANCH: ${{ inputs.branch || 'main' }}
+        run: frogbot scan-repository
