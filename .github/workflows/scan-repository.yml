@@ -1,5 +1,4 @@
 name: Scan Repository (centralized)
-
 # Scans OTHER repositories in this organization. Nothing is installed in them.
 #
 # Frogbot's Go core takes the repo it should act on entirely from JF_GIT_* and
@@ -13,8 +12,15 @@ name: Scan Repository (centralized)
 # NOTE: `scan-repository` also opens fix pull requests, so this is not a
 # scan-only path — it runs package managers and does depend on the build
 # environment.
-
+#
+# Triggers:
+# - repository_dispatch `jfrog-scan-repository` — single target from
+#   client_payload { target_repo, branch }
+# - workflow_dispatch — optional single target or (empty) org fan-out
+# - schedule — daily org fan-out
 on:
+  repository_dispatch:
+    types: [jfrog-scan-repository]
   workflow_dispatch:
     inputs:
       target_repo:
@@ -29,10 +35,10 @@ on:
   schedule:
     # Daily fan-out across the whole org.
     - cron: "17 3 * * *"
-
 permissions:
   contents: read
-
+env:
+  TARGET_BRANCH: ${{ github.event.client_payload.branch || inputs.branch || 'main' }}
 jobs:
   discover:
     runs-on: ubuntu-latest
@@ -43,7 +49,7 @@ jobs:
         id: list
         env:
           GH_TOKEN: ${{ secrets.JF_GIT_TOKEN }}
-          SINGLE_TARGET: ${{ inputs.target_repo }}
+          SINGLE_TARGET: ${{ github.event.client_payload.target_repo || inputs.target_repo }}
         run: |
           set -euo pipefail
           if [ -n "${SINGLE_TARGET}" ]; then
@@ -56,7 +62,6 @@ jobs:
           fi
           echo "targets=${targets}" >> "$GITHUB_OUTPUT"
           echo "Resolved targets: ${targets}"
-
   scan:
     needs: discover
     if: needs.discover.outputs.targets != '[]'
@@ -77,30 +82,26 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository_owner }}/${{ matrix.target }}
-          ref: ${{ inputs.branch || 'main' }}
+          ref: ${{ env.TARGET_BRANCH }}
           token: ${{ secrets.JF_GIT_TOKEN }}
           fetch-depth: 0
-
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-
       - name: Install Frogbot
         run: |
           set -euo pipefail
           curl -fL 'https://releases.jfrog.io/artifactory/frogbot/v3/%5BRELEASE%5D/frogbot-linux-amd64/frogbot' -o /usr/local/bin/frogbot
           chmod +x /usr/local/bin/frogbot
           frogbot --version
-
       - name: Scan target repository
         env:
           JF_URL: ${{ secrets.JF_URL }}
           JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
-
           JF_GIT_PROVIDER: github
           JF_GIT_API_ENDPOINT: https://api.github.com
           JF_GIT_TOKEN: ${{ secrets.JF_GIT_TOKEN }}
           JF_GIT_OWNER: ${{ github.repository_owner }}
           JF_GIT_REPO: ${{ matrix.target }}
-          JF_GIT_BASE_BRANCH: ${{ inputs.branch || 'main' }}
+          JF_GIT_BASE_BRANCH: ${{ env.TARGET_BRANCH }}
         run: frogbot scan-repository

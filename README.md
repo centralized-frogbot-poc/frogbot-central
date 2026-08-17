@@ -23,10 +23,13 @@ Frogbot workflow of its own.
 
 | Workflow | Trigger | Covers |
 |---|---|---|
-| `scan-repository.yml` | daily cron + manual dispatch | fans out across every non-archived repo in the org via a matrix |
-| `scan-pull-request.yml` | manual dispatch (`target_repo`, `pr_number`) | one PR in one target repo, plus the commit status that gates it |
+| `scan-repository.yml` | `repository_dispatch` (`jfrog-scan-repository`) + daily cron + manual dispatch | single target from payload, or fans out across every non-archived repo |
+| `scan-pull-request.yml` | `repository_dispatch` (`jfrog-scan-pull-request`) + manual dispatch | one PR in one target repo (`target_repo`, `pr_number`), plus commit status gate |
+| `jfrog-auto-fix.yml` | `repository_dispatch` (`jfrog-auto-fix`) | centralized auto-fix against `target_owner`/`target_repo` (POC) |
 
-Organization secrets: `JF_URL`, `JF_ACCESS_TOKEN`, `JF_GIT_TOKEN`.
+`repository_dispatch` is the production-shaped path (XSC / App webhook → central workflows). Manual `workflow_dispatch` remains for POC testing.
+
+Organization secrets: `JF_URL`, `JF_ACCESS_TOKEN`, `JF_GIT_TOKEN`. Auto-fix also uses `AUTO_FIX_TOKEN` (falls back to `JF_GIT_TOKEN`).
 
 ## What we learned
 
@@ -131,8 +134,9 @@ which is what this POC used.
    1-hour installation token scoped to the single target repo, fetched at runtime
    (job presents its Actions OIDC token to XSC, which validates the `sub` claim
    and returns a scoped token) so nothing sits at rest in the customer's org.
-2. **Dispatch is manual.** Production drives this from the `pull_request` App
-   webhook. Must cover Frogbot's own fix PRs (see finding 4).
+2. **Dispatch wiring.** Workflows now accept `repository_dispatch` (POC stand-in
+   for the App webhook → XSC → central run path). Must still cover Frogbot's own
+   fix PRs (see finding 4). Auto-fix is centralized here as a POC.
 3. **Splitting scan from fix.** `scan-repository` opens fix PRs, so it is not a
    scan-only path — it runs package managers and does depend on the build
    environment. A purely centralized detective capability needs the split.

@@ -1,0 +1,39 @@
+name: JFrog Auto-Fix (centralized)
+# Runs auto-fix against a target repository in this organization.
+# Dispatched by XSC / central integration with client_payload:
+#   target_owner, target_repo, component_name, affected_version, fix_version,
+#   branch (or branch_name), commit_hash, log_level (optional)
+on:
+  repository_dispatch:
+    types: [jfrog-auto-fix]
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  auto-fix:
+    runs-on: ubuntu-latest
+    name: "auto-fix: ${{ github.event.client_payload.target_owner }}/${{ github.event.client_payload.target_repo }}"
+    steps:
+      - name: Configure git identity
+        run: |
+          git config --global user.name "jfrog-auto-fix[bot]"
+          git config --global user.email "auto-fix@jfrog.com"
+
+      - name: Check out the TARGET repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.client_payload.target_owner }}/${{ github.event.client_payload.target_repo }}
+          ref: ${{ github.event.client_payload.branch_name || github.event.client_payload.branch || github.event.client_payload.commit_hash }}
+          token: ${{ secrets.AUTO_FIX_TOKEN || secrets.JF_GIT_TOKEN }}
+          fetch-depth: 0
+
+      - name: Run auto-fix
+        uses: Jordanh1996/auto-fix@v1-docker
+        with:
+          component_name:   ${{ github.event.client_payload.component_name }}
+          affected_version: ${{ github.event.client_payload.affected_version }}
+          fix_version:      ${{ github.event.client_payload.fix_version }}
+          github_token:     ${{ secrets.AUTO_FIX_TOKEN || secrets.JF_GIT_TOKEN }}
+          branch_name:      ${{ github.event.client_payload.branch_name || github.event.client_payload.branch }}
+          commit_hash:      ${{ github.event.client_payload.commit_hash }}
+          log_level:        ${{ github.event.client_payload.log_level || 'INFO' }}
