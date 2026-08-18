@@ -19,21 +19,15 @@ jobs:
           git config --global user.name "jfrog-auto-fix[bot]"
           git config --global user.email "auto-fix@jfrog.com"
 
-      - name: Check out the TARGET repository
-        uses: actions/checkout@v4
+      - name: Run auto-fix against the TARGET repository
+        uses: Jordanh1996/auto-fix@centralized-repository-input
         with:
-          repository: ${{ github.event.client_payload.target_owner }}/${{ github.event.client_payload.target_repo }}
-          ref: ${{ github.event.client_payload.branch_name || github.event.client_payload.branch || github.event.client_payload.commit_hash }}
-          token: ${{ secrets.AUTO_FIX_TOKEN || secrets.JF_GIT_TOKEN }}
-          fetch-depth: 0
-
-      - name: Run auto-fix
-        uses: Jordanh1996/auto-fix@v1-docker
-        with:
+          repository:       ${{ github.event.client_payload.target_owner }}/${{ github.event.client_payload.target_repo }}
           component_name:   ${{ github.event.client_payload.component_name }}
           affected_version: ${{ github.event.client_payload.affected_version }}
           fix_version:      ${{ github.event.client_payload.fix_version }}
           github_token:     ${{ secrets.AUTO_FIX_TOKEN || secrets.JF_GIT_TOKEN }}
-          branch_name:      ${{ github.event.client_payload.branch_name || github.event.client_payload.branch }}
-          commit_hash:      ${{ github.event.client_payload.commit_hash }}
+          branch_name:      ${{ github.event.client_payload.branch_name || github.event.client_payload.branch || 'main' }}
+          commit_hash:      ${{ github.event.client_payload.branch_name || github.event.client_payload.branch || 'main' }}
           log_level:        ${{ github.event.client_payload.log_level || 'INFO' }}
+
