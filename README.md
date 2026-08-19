@@ -7,6 +7,25 @@ each one.
 Target repositories contain **no Frogbot workflow, no secrets and no
 configuration**. Nothing is installed in them.
 
+## CVE Auto-Fix (centralized)
+
+Target repositories must **not** contain `jfrog-auto-fix.yml`. The only auto-fix workflow is this repo's `.github/workflows/jfrog-auto-fix.yml`.
+
+XSC `fix_component` → central-integration `repository_dispatch` `jfrog-auto-fix` on **this** repo, with:
+
+| payload | meaning |
+|---|---|
+| `target_owner` / `target_repo` | git repo of the scanned artifact (`vcs.url`) |
+| `component_name` | e.g. `com.fasterxml.jackson.core:jackson-databind` |
+| `affected_version` / `fix_version` | from Xray remediations |
+| `branch` | `vcs.branch` |
+
+The action must checkout `repository: target_owner/target_repo`. Default `GITHUB_REPOSITORY` is `frogbot-central`, so without that input the SHA/PR land on the dispatcher.
+
+Org secrets: `JF_GIT_TOKEN` (or `AUTO_FIX_TOKEN`), `JF_URL`, `JF_ACCESS_TOKEN`.
+
+Full wiring (GitHub App, ngrok → `:8046`, tenant map, JAS, artifact VCS props) is listed on the companion draft PRs. Not for review.
+
 ## Status: working
 
 | Capability | Result |
